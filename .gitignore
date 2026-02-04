@@ -1,5 +1,9 @@
 node_modules/
 dist/
 .env
-data/memories.json
 .DS_Store
+.qmd/
+knowledge/**
+!knowledge/.gitkeep
+!knowledge/README.md
+USER.md

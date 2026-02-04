@@ -11,11 +11,15 @@
     "@mariozechner/pi-agent-core": "^0.51.1",
     "@mariozechner/pi-ai": "^0.51.1",
     "@sinclair/typebox": "^0.34.0",
+    "qmd": "github:tobi/qmd",
     "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "@types/node": "^22.0.0"
-  }
+  },
+  "trustedDependencies": [
+    "node-llama-cpp"
+  ]
 }

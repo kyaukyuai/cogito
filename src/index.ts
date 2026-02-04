@@ -1,7 +1,10 @@
 import "dotenv/config";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { createAgent, getRequiredApiKey } from "./agent.js";
+import { createAgent, getRequiredApiKey, refreshSystemPrompt } from "./agent.js";
+import { consolidateSession } from "./memory/consolidator.js";
+import { extractFromMessage, getLatestPair, shouldExtract, storeExtractions } from "./memory/realtime-extractor.js";
+import { extractNameFromText, setUserName } from "./memory/profile.js";
 
 const DEFAULT_MODEL = "anthropic/claude-sonnet-4-20250514";
 
@@ -43,6 +46,24 @@ async function main() {
     if (event.type === "message_end" && event.message.role === "assistant") {
       assistantActive = false;
       output.write("\n");
+      if (process.env.COGITO_ENABLE_REALTIME !== "0") {
+        const { userMessage, assistantMessage } = getLatestPair(agent.state.messages);
+        if (shouldExtract(userMessage, assistantMessage)) {
+          queueMicrotask(async () => {
+            try {
+              const results = await extractFromMessage(
+                userMessage,
+                assistantMessage,
+                agent.state.messages
+              );
+              await storeExtractions(results);
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              console.error(`Extraction Error: ${message}`);
+            }
+          });
+        }
+      }
     }
   });
 
@@ -56,7 +77,22 @@ async function main() {
     if (!text) {
       continue;
     }
+    const detectedName = extractNameFromText(text);
+    if (detectedName) {
+      setUserName(detectedName, "direct");
+      refreshSystemPrompt(agent);
+    }
     if (text === "exit" || text === "quit") {
+      if (process.env.COGITO_ENABLE_CONSOLIDATE === "1") {
+        console.log("記憶を整理中...");
+        try {
+          await consolidateSession(agent.state.messages);
+          console.log("完了!");
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(`Consolidation Error: ${message}`);
+        }
+      }
       break;
     }
 

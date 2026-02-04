@@ -1,0 +1,14 @@
+collections:
+  - name: knowledge
+    path: ./knowledge
+    glob: "**/*.md"
+
+embeddings:
+  model: embeddinggemma
+  chunkSize: 800
+  overlap: 120
+
+search:
+  defaultLimit: 5
+  rerank: true
+  rerankModel: qwen3-reranker
