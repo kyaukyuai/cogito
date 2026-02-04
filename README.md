@@ -2,10 +2,15 @@
 
 利用者の思考プロセスを学習・再現するAIエージェント（MVP）
 
+## 必要環境
+
+- Bun 1.x（QMD が `bun:sqlite` 依存のため必須）
+- Node.js 20+（ツールチェイン用途）
+
 ## セットアップ
 
 ```bash
-npm install
+bun install
 cp .env.example .env
 # .env に ANTHROPIC_API_KEY を設定
 ```
@@ -13,7 +18,7 @@ cp .env.example .env
 ## 起動
 
 ```bash
-npm start
+bun run src/index.ts
 ```
 
 ## 機能
@@ -21,6 +26,8 @@ npm start
 - 対話形式でのやり取り
 - 重要情報の記憶保存（remember ツール）
 - 記憶を参照した回答生成
+- 利用者プロフィール（`knowledge/profile.json`）による名前の確実参照
+- `USER.md` 自動更新（プロフィール同期）
 
 ## OpenClaw 互換のプロンプト構成
 
@@ -48,6 +55,11 @@ npm start
 - `person` / `project` / `decision` → 長期記憶
 - それ以外 → 日次記憶
 
+## プロフィールと USER.md
+
+- `knowledge/profile.json` が **真実のソース** です
+- `USER.md` は `profile.json` と自動同期されます
+
 ## 統合処理（exit時）
 
 Bun の安定性のため、セッション終了時の統合は **デフォルトOFF** です。  
@@ -68,4 +80,13 @@ Bun での安定性を優先する場合、以下を制御できます。
 ```bash
 COGITO_ENABLE_EMBED=1 bun run src/index.ts
 ```
-```
+
+## 主要な環境変数
+
+- `ANTHROPIC_API_KEY`（必須）
+- `COGITO_MODEL`（例: `anthropic/claude-sonnet-4-20250514`）
+- `COGITO_PROMPT_MAX_CHARS`（OpenClaw互換注入の上限）
+- `COGITO_ENABLE_QMD`（`0` で無効）
+- `COGITO_ENABLE_REALTIME`（`0` で無効）
+- `COGITO_ENABLE_EMBED`（`1` で有効）
+- `COGITO_ENABLE_CONSOLIDATE`（`1` で有効）
