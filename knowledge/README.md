@@ -1,4 +1,4 @@
 # knowledge
 
-このディレクトリは記憶データの保存先です。
-公開リポジトリには中身を含めず、ローカルでのみ管理します。
+This directory stores memory data and is ignored in git.
+Keep local contents private.

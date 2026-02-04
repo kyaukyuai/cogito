@@ -1,37 +1,59 @@
 # Cogito
 
-利用者の思考プロセスを学習・再現するAIエージェント（MVP）
+An AI agent (MVP) that learns and reproduces the user's thinking process.
 
-## 必要環境
+## Design Philosophy: Malleable Agent
 
-- Bun 1.x（QMD が `bun:sqlite` 依存のため必須）
-- Node.js 20+（ツールチェイン用途）
+“Pi is the most interesting agent harness. Tiny core, able to write plugins for itself as you use it. It RLs itself into the agent you want.” “Dawn of the age of malleable software.” — Shopify CEO Tobi Lütke (2026-02-03)
 
-## セットアップ
+Four design principles:
+
+1. Self-extension over fixed features.
+2. “I want this feature” → the agent implements it itself.
+3. RL-like evolution with use.
+4. Tiny core + self-extending system.
+
+Autonomous learning loop:
+
+1. Unknown → investigate.
+2. Learn and store.
+3. Answer better next time.
+
+Trajectory:
+
+1. Day 1: general assistant.
+2. Day 100: a faithful clone of the target decision-maker.
+
+## Requirements
+
+- Bun 1.x (QMD relies on `bun:sqlite`)
+- Node.js 20+ (tooling)
+
+## Setup
 
 ```bash
 bun install
 cp .env.example .env
-# .env に ANTHROPIC_API_KEY を設定
+# set ANTHROPIC_API_KEY in .env
 ```
 
-## 起動
+## Run
 
 ```bash
 bun run src/index.ts
 ```
 
-## 機能
+## Features
 
-- 対話形式でのやり取り
-- 重要情報の記憶保存（remember ツール）
-- 記憶を参照した回答生成
-- 利用者プロフィール（`knowledge/profile.json`）による名前の確実参照
-- `USER.md` 自動更新（プロフィール同期）
+- CLI chat loop
+- Structured memory via `remember`
+- Memory-aware responses
+- User profile (`knowledge/profile.json`) for stable name recall
+- `USER.md` auto-sync from profile
 
-## OpenClaw 互換のプロンプト構成
+## OpenClaw-Style Prompt Composition
 
-以下のファイルを読み取り、システムプロンプトを動的に組み立てます。
+The system prompt is built dynamically from these files:
 
 - `AGENTS.md`
 - `SOUL.md`
@@ -39,54 +61,54 @@ bun run src/index.ts
 - `TOOLS.md`
 - `USER.md`
 - `knowledge/MEMORY.md`
-- `knowledge/memory/YYYY-MM-DD.md`（今日と昨日）
+- `knowledge/memory/YYYY-MM-DD.md` (today and yesterday)
 
-必要なら `COGITO_PROMPT_MAX_CHARS` で読み込み上限を変更できます。
+You can limit injected size with `COGITO_PROMPT_MAX_CHARS`.
 
-## 記憶の保存ルール（OpenClaw式）
+## Memory Storage Rules (OpenClaw-style)
 
-- **長期記憶**: `knowledge/MEMORY.md`
-  - 名前・役職・判断基準・継続的な事実
-- **日次記憶**: `knowledge/memory/YYYY-MM-DD.md`
-  - その日の会話ログ、短期的な出来事
+Long-term memory file: `knowledge/MEMORY.md`.
+Store names, roles, decision criteria, and persistent facts.
 
-### 自動保存の振り分け
+Daily memory file: `knowledge/memory/YYYY-MM-DD.md`.
+Store daily conversation logs and short-lived events.
 
-- `person` / `project` / `decision` → 長期記憶
-- それ以外 → 日次記憶
+Routing rule:
+`person` / `project` / `decision` go to long-term memory. Everything else goes to daily memory.
 
-## プロフィールと USER.md
+## Profile and USER.md
 
-- `knowledge/profile.json` が **真実のソース** です
-- `USER.md` は `profile.json` と自動同期されます
+`knowledge/profile.json` is the source of truth.
+`USER.md` is automatically synced from the profile.
 
-## 統合処理（exit時）
+## Session Consolidation (on exit)
 
-Bun の安定性のため、セッション終了時の統合は **デフォルトOFF** です。  
-有効にする場合は以下の環境変数を指定してください。
+Disabled by default for Bun stability. Enable with:
 
 ```bash
 COGITO_ENABLE_CONSOLIDATE=1 bun run src/index.ts
 ```
 
-## QMD / リアルタイム抽出（安定性優先）
+## QMD / Realtime Extraction (stability-first)
 
-Bun での安定性を優先する場合、以下を制御できます。
+Controls:
 
-- QMD 検索（FTSのみ）は **デフォルトON**: `COGITO_ENABLE_QMD=0` で無効化
-- リアルタイム抽出は **デフォルトON**: `COGITO_ENABLE_REALTIME=0` で無効化
-- 埋め込み（ベクトル検索）は **デフォルトOFF**: `COGITO_ENABLE_EMBED=1` で有効化
+- QMD FTS is **ON by default**. Disable with `COGITO_ENABLE_QMD=0`.
+- Realtime extraction is **ON by default**. Disable with `COGITO_ENABLE_REALTIME=0`.
+- Embeddings (vector search) are **OFF by default**. Enable with `COGITO_ENABLE_EMBED=1`.
+
+Example:
 
 ```bash
 COGITO_ENABLE_EMBED=1 bun run src/index.ts
 ```
 
-## 主要な環境変数
+## Environment Variables
 
-- `ANTHROPIC_API_KEY`（必須）
-- `COGITO_MODEL`（例: `anthropic/claude-sonnet-4-20250514`）
-- `COGITO_PROMPT_MAX_CHARS`（OpenClaw互換注入の上限）
-- `COGITO_ENABLE_QMD`（`0` で無効）
-- `COGITO_ENABLE_REALTIME`（`0` で無効）
-- `COGITO_ENABLE_EMBED`（`1` で有効）
-- `COGITO_ENABLE_CONSOLIDATE`（`1` で有効）
+- `ANTHROPIC_API_KEY` (required)
+- `COGITO_MODEL` (e.g. `anthropic/claude-sonnet-4-20250514`)
+- `COGITO_PROMPT_MAX_CHARS`
+- `COGITO_ENABLE_QMD` (`0` to disable)
+- `COGITO_ENABLE_REALTIME` (`0` to disable)
+- `COGITO_ENABLE_EMBED` (`1` to enable)
+- `COGITO_ENABLE_CONSOLIDATE` (`1` to enable)
