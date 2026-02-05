@@ -8,12 +8,14 @@ import { addFact, createEntity, entityExists } from "./memory/para.js";
 import { appendDaily, appendLongTerm, classifyMemory } from "./memory/journal.js";
 import { getUserName, setUserName } from "./memory/profile.js";
 import { search, searchFTSOnly, updateIndex } from "./memory/search.js";
+import { learnAutonomously, type LearnedKnowledge } from "./memory/autonomous-learner.js";
+import { generateSkill, isSkillRequest } from "./skills/skill-generator.js";
 import type { EntityType } from "./memory/types.js";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import { ENABLE_LEARNING, ENABLE_QMD, KNOWLEDGE_GAP_THRESHOLD } from "./config.js";
 
 const DEFAULT_MODEL = "anthropic/claude-sonnet-4-20250514";
 const SYSTEM_PROMPT_PATH = path.resolve(process.cwd(), "prompts", "system.md");
-const ENABLE_QMD = process.env.COGITO_ENABLE_QMD !== "0";
 const MAX_PROMPT_CHARS = Number(process.env.COGITO_PROMPT_MAX_CHARS ?? 20000);
 
 const AGENTS_PATH = path.resolve(process.cwd(), "AGENTS.md");
@@ -49,14 +51,20 @@ function extractText(message: AgentMessage | undefined): string {
 function hasRecallAfter(messages: AgentMessage[], index: number): boolean {
   for (let i = index + 1; i < messages.length; i += 1) {
     const msg = messages[i] as any;
-    if (msg?.role === "user" && extractText(msg).startsWith("【記憶】")) {
+    if (
+      msg?.role === "user" &&
+      (extractText(msg).startsWith("【記憶】") || extractText(msg).startsWith("【自律学習の結果】"))
+    ) {
       return true;
     }
   }
   return false;
 }
 
-async function searchWithTimeout(query: string, timeoutMs: number): Promise<Array<{ entity: string; snippet: string; source: string }>> {
+async function searchWithTimeout(
+  query: string,
+  timeoutMs: number
+): Promise<Array<{ entity: string; snippet: string; source: string; score: number }>> {
   return new Promise((resolve) => {
     let settled = false;
     const timer = setTimeout(() => {
@@ -89,6 +97,18 @@ function formatRecallResults(results: Array<{ entity: string; snippet: string; s
     "関連する記憶:",
     ...results.map((r, i) => `${i + 1}. ${r.entity}: ${r.snippet} (${r.source})`),
   ].join("\n");
+}
+
+function formatLearned(learned: LearnedKnowledge): string {
+  return [
+    `トピック: ${learned.topic}`,
+    learned.summary,
+    "重要ポイント:",
+    ...learned.facts.map((f) => `- ${f}`),
+    learned.sources.length > 0 ? `Sources: ${learned.sources.join(", ")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function buildSystemPrompt(): string {
@@ -151,47 +171,7 @@ export function getRequiredApiKey(provider: string): string | null {
   return envKey;
 }
 
-export function createAgent(): Agent {
-  const systemPrompt = buildSystemPrompt();
-
-  const modelSpec = process.env.COGITO_MODEL ?? DEFAULT_MODEL;
-  const { provider, model } = parseModelSpec(modelSpec);
-
-  const agent = new Agent({
-    transformContext: ENABLE_QMD
-      ? async (messages) => {
-      const lastIndex = messages.length - 1;
-      const last = messages[lastIndex];
-      if (!last || last.role !== "user") {
-        return messages;
-      }
-      if (hasRecallAfter(messages, lastIndex)) {
-        return messages;
-      }
-      const query = extractText(last).trim();
-      if (!query) {
-        return messages;
-      }
-      try {
-        const results = await searchWithTimeout(query, 1200);
-        if (results.length === 0) {
-          return messages;
-        }
-        const recallMessage = {
-          role: "user",
-          content: [{ type: "text", text: `【記憶】\n${formatRecallResults(results)}` }],
-          timestamp: Date.now(),
-        };
-        return [...messages, recallMessage];
-      } catch {
-        return messages;
-      }
-    }
-      : undefined,
-  });
-  agent.setSystemPrompt(systemPrompt);
-  agent.setModel(getModel(provider, model));
-
+export function buildBaseTools(): AgentTool[] {
   const rememberTool: AgentTool = {
     name: "remember",
     label: "remember",
@@ -268,6 +248,107 @@ export function createAgent(): Agent {
     },
   };
 
-  agent.setTools([rememberTool, recallTool]);
+  return [rememberTool, recallTool];
+}
+
+export function setAgentTools(agent: Agent, extraTools: AgentTool[] = []): void {
+  agent.setTools([...buildBaseTools(), ...extraTools]);
+}
+
+export function createAgent(): Agent {
+  const systemPrompt = buildSystemPrompt();
+
+  const modelSpec = process.env.COGITO_MODEL ?? DEFAULT_MODEL;
+  const { provider, model } = parseModelSpec(modelSpec);
+
+  const agent = new Agent({
+    transformContext: ENABLE_QMD || ENABLE_LEARNING
+      ? async (messages, signal) => {
+      const lastIndex = messages.length - 1;
+      const last = messages[lastIndex];
+      if (!last || last.role !== "user") {
+        return messages;
+      }
+      if (hasRecallAfter(messages, lastIndex)) {
+        return messages;
+      }
+      const query = extractText(last).trim();
+      if (!query) {
+        return messages;
+      }
+      if (isSkillRequest(query)) {
+        const proposal = await generateSkill(query);
+        if (proposal) {
+          const note = proposal.applied
+            ? `Generated: ${proposal.path}`
+            : "Proposal only (set COGITO_ALLOW_SKILL_WRITE=1 to write).";
+          return [
+            ...messages,
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `【スキル案】\n${proposal.name}\n${proposal.description}\n${note}`,
+                },
+              ],
+              timestamp: Date.now(),
+            },
+          ];
+        }
+      }
+
+      let results: Array<{ entity: string; snippet: string; source: string; score: number }> = [];
+      try {
+        results = await searchWithTimeout(query, 1200);
+      } catch {
+        results = [];
+      }
+
+      const topScore = results[0]?.score ?? 0;
+      if (results.length > 0 && (!ENABLE_LEARNING || topScore >= KNOWLEDGE_GAP_THRESHOLD)) {
+        return [
+          ...messages,
+          {
+            role: "user",
+            content: [{ type: "text", text: `【記憶】\n${formatRecallResults(results)}` }],
+            timestamp: Date.now(),
+          },
+        ];
+      }
+
+      if (!ENABLE_LEARNING) {
+        return messages;
+      }
+
+      try {
+        const learned = await learnAutonomously(query);
+        return [
+          ...messages,
+          {
+            role: "user",
+            content: [{ type: "text", text: `【自律学習の結果】\n${formatLearned(learned)}` }],
+            timestamp: Date.now(),
+          },
+        ];
+      } catch {
+        return results.length > 0
+          ? [
+              ...messages,
+              {
+                role: "user",
+                content: [{ type: "text", text: `【記憶】\n${formatRecallResults(results)}` }],
+                timestamp: Date.now(),
+              },
+            ]
+          : messages;
+      }
+    }
+      : undefined,
+  });
+  agent.setSystemPrompt(systemPrompt);
+  agent.setModel(getModel(provider, model));
+
+  setAgentTools(agent);
   return agent;
 }

@@ -20,10 +20,16 @@ If you detect any of the following during a conversation, save immediately with 
 - Important numbers, dates, and proper nouns
 
 ### Criteria
-- If the user says "remember", always save
+- If the user says "remember", save when it is feasible and relevant
 - Proper noun + attribute, save
 - Mentioned 2+ times, save
 - Vague or temporary info, do not save
 
 ### Session End
 On exit, the system may consolidate the session memory.
+
+## Autonomous Learning (Optional)
+
+When enabled, if the knowledge is insufficient, the system may:
+1) search the web, 2) synthesize the information, 3) save it, and 4) answer better next time.
+Be explicit when information was learned via web search.

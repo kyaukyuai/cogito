@@ -1,10 +1,13 @@
 import "dotenv/config";
-import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { createAgent, getRequiredApiKey, refreshSystemPrompt } from "./agent.js";
 import { consolidateSession } from "./memory/consolidator.js";
 import { extractFromMessage, getLatestPair, shouldExtract, storeExtractions } from "./memory/realtime-extractor.js";
 import { extractNameFromText, setUserName } from "./memory/profile.js";
+import { isSkillRequest } from "./skills/skill-generator.js";
+import { bootstrapGeneratedSkills, describeSkillLoadErrors, handleSkillRequest, type SkillRuntime } from "./skills/runtime.js";
+import { ENABLE_CONSOLIDATE, ENABLE_REALTIME, ENABLE_SKILL_GEN } from "./config.js";
+import { runCli } from "./cli/loop.js";
 
 const DEFAULT_MODEL = "anthropic/claude-sonnet-4-20250514";
 
@@ -29,6 +32,18 @@ async function main() {
   }
 
   const agent = createAgent();
+  const skillRuntime: SkillRuntime = { extraTools: [] };
+
+  if (ENABLE_SKILL_GEN) {
+    const loaded = await bootstrapGeneratedSkills(agent, skillRuntime);
+    if (loaded.names.length > 0) {
+      console.log(`Loaded skills: ${loaded.names.join(", ")}`);
+    }
+    const errors = describeSkillLoadErrors(loaded.errors);
+    for (const line of errors) {
+      console.error(line);
+    }
+  }
   let assistantActive = false;
 
   agent.subscribe((event) => {
@@ -46,7 +61,7 @@ async function main() {
     if (event.type === "message_end" && event.message.role === "assistant") {
       assistantActive = false;
       output.write("\n");
-      if (process.env.COGITO_ENABLE_REALTIME !== "0") {
+      if (ENABLE_REALTIME) {
         const { userMessage, assistantMessage } = getLatestPair(agent.state.messages);
         if (shouldExtract(userMessage, assistantMessage)) {
           queueMicrotask(async () => {
@@ -67,53 +82,72 @@ async function main() {
     }
   });
 
-  const rl = readline.createInterface({ input, output });
+  const banner = "Cogito (MVP) - 'exit' で終了";
+  const pasteDebounceMs = Number(process.env.COGITO_PASTE_DEBOUNCE_MS ?? "60");
 
-  console.log("Cogito (MVP) - 'exit' で終了\n");
-
-  while (true) {
-    const line = await rl.question("You: ");
-    const text = line.trim();
-    if (!text) {
-      continue;
-    }
-    const detectedName = extractNameFromText(text);
-    if (detectedName) {
-      setUserName(detectedName, "direct");
-      refreshSystemPrompt(agent);
-    }
-    if (text === "exit" || text === "quit") {
-      if (process.env.COGITO_ENABLE_CONSOLIDATE === "1") {
-        console.log("記憶を整理中...");
-        try {
-          await consolidateSession(agent.state.messages);
-          console.log("完了!");
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          console.error(`Consolidation Error: ${message}`);
+  await runCli(
+    {
+      onInput: async (text) => {
+        const detectedName = extractNameFromText(text);
+        if (detectedName) {
+          setUserName(detectedName, "direct");
+          refreshSystemPrompt(agent);
         }
-      }
-      break;
-    }
 
-    try {
-      await agent.prompt(text);
-      if (assistantActive) {
-        output.write("\n");
-        assistantActive = false;
-      }
-    } catch (error) {
-      if (assistantActive) {
-        output.write("\n");
-        assistantActive = false;
-      }
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`Error: ${message}`);
-    }
-  }
+        if (ENABLE_SKILL_GEN && isSkillRequest(text)) {
+          try {
+            const result = await handleSkillRequest(agent, skillRuntime, text);
+            if (result.message) {
+              output.write("Assistant: ");
+              output.write(`${result.message}\n`);
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            output.write(`スキル提案エラー: ${message}\n`);
+          }
+          return false;
+        }
 
-  rl.close();
-  console.log("Goodbye!");
+        if (text === "exit" || text === "quit") {
+          if (ENABLE_CONSOLIDATE) {
+            console.log("記憶を整理中...");
+            try {
+              await consolidateSession(agent.state.messages);
+              console.log("完了!");
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              console.error(`Consolidation Error: ${message}`);
+            }
+          }
+          console.log("Goodbye!");
+          return true;
+        }
+
+        try {
+          await agent.prompt(text);
+          if (assistantActive) {
+            output.write("\n");
+            assistantActive = false;
+          }
+        } catch (error) {
+          if (assistantActive) {
+            output.write("\n");
+            assistantActive = false;
+          }
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(`Error: ${message}`);
+        }
+        return false;
+      },
+    },
+    {
+      input,
+      output,
+      banner,
+      prompt: "You: ",
+      pasteDebounceMs,
+    }
+  );
 }
 
 main().catch((error) => {

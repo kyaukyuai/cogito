@@ -1,8 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Entity, EntityType, Fact } from "./types.js";
-
-const KNOWLEDGE_DIR = path.resolve(process.cwd(), "knowledge");
+import { KNOWLEDGE_DIR } from "./paths.js";
 
 function slugify(value: string): string {
   return value

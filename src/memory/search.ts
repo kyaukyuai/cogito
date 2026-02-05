@@ -3,17 +3,16 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { createStore, type Store } from "qmd/src/store";
 import type { SearchResult } from "./types.js";
+import { ENABLE_EMBED, ENABLE_QMD } from "../config.js";
+import { KNOWLEDGE_DIR } from "./paths.js";
 
 let store: Store | null = null;
 
 const QMD_DIR = path.resolve(process.cwd(), ".qmd");
 const DB_PATH = path.join(QMD_DIR, "cogito.sqlite");
 const QMD_BIN = path.resolve(process.cwd(), "node_modules", "qmd", "qmd");
-const KNOWLEDGE_DIR = path.resolve(process.cwd(), "knowledge");
 const COLLECTION_NAME = "knowledge";
 const QMD_CONFIG = path.join(QMD_DIR, "index.yml");
-const ENABLE_QMD = process.env.COGITO_ENABLE_QMD !== "0";
-const ENABLE_EMBED = process.env.COGITO_ENABLE_EMBED === "1";
 
 function getStore(): Store {
   if (!store) {

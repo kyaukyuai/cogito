@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import path from "node:path";
+import { KNOWLEDGE_DIR, PROFILE_PATH, USER_MD_PATH } from "./paths.js";
 
 export interface UserProfile {
   name?: string;
@@ -7,13 +7,11 @@ export interface UserProfile {
   source?: string;
 }
 
-const KNOWLEDGE_DIR = path.resolve(process.cwd(), "knowledge");
-const PROFILE_PATH = path.join(KNOWLEDGE_DIR, "profile.json");
-const USER_MD_PATH = path.join(process.cwd(), "USER.md");
+const PROFILE_DIR = KNOWLEDGE_DIR;
 
 function ensureDir(): void {
-  if (!fs.existsSync(KNOWLEDGE_DIR)) {
-    fs.mkdirSync(KNOWLEDGE_DIR, { recursive: true });
+  if (!fs.existsSync(PROFILE_DIR)) {
+    fs.mkdirSync(PROFILE_DIR, { recursive: true });
   }
 }
 
@@ -53,6 +51,8 @@ export function getUserName(): string | null {
 function syncUserMd(profile: UserProfile): void {
   const lines = [
     "# USER",
+    "",
+    "_This file is auto-generated from knowledge/profile.json. Do not edit manually._",
     "",
     profile.name ? `- name: ${profile.name}` : "- name: ",
     profile.updatedAt ? `- updated_at: ${profile.updatedAt}` : "- updated_at: ",

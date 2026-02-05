@@ -1,6 +1,6 @@
 # Cogito
 
-An AI agent (MVP) that learns and reproduces the user's thinking process.
+An AI agent (MVP) designed to learn and approximate the user's thinking process.
 
 ## Design Philosophy: Malleable Agent
 
@@ -9,20 +9,20 @@ An AI agent (MVP) that learns and reproduces the user's thinking process.
 Four design principles:
 
 1. Self-extension over fixed features.
-2. “I want this feature” → the agent implements it itself.
-3. RL-like evolution with use.
-4. Tiny core + self-extending system.
+2. “I want this feature” → the agent can propose or implement it.
+3. RL-like evolution with use (aspirational).
+4. Tiny core + self-extending system (where safe).
 
 Autonomous learning loop:
 
 1. Unknown → investigate.
-2. Learn and store.
-3. Answer better next time.
+2. Learn and store (when enabled).
+3. Answer better next time (best effort).
 
 Trajectory:
 
 1. Day 1: general assistant.
-2. Day 100: a faithful clone of the target decision-maker.
+2. Day 100: closer approximation of the target decision-maker.
 
 ## Requirements
 
@@ -43,13 +43,28 @@ cp .env.example .env
 bun run src/index.ts
 ```
 
+## Modes (Simplified)
+
+Set `COGITO_MODE` to control features as a single switch. Default is `full`:
+
+- `stable`: QMD FTS + realtime extraction, no embeddings, no consolidation, no autonomous learning
+- `learning`: `stable` + autonomous learning + skill proposals
+- `full`: `learning` + embeddings + consolidation on exit
+
+Examples:
+
+```bash
+COGITO_MODE=learning BRAVE_API_KEY=... bun run src/index.ts
+COGITO_MODE=full BRAVE_API_KEY=... bun run src/index.ts
+```
+
 ## Features
 
 - CLI chat loop
 - Structured memory via `remember`
 - Memory-aware responses
-- User profile (`knowledge/profile.json`) for stable name recall
-- `USER.md` auto-sync from profile
+- User profile (`knowledge/profile.json`) for more stable name recall
+- `USER.md` auto-synced from profile (generated file)
 
 ## OpenClaw-Style Prompt Composition
 
@@ -79,36 +94,51 @@ Routing rule:
 ## Profile and USER.md
 
 `knowledge/profile.json` is the source of truth.
-`USER.md` is automatically synced from the profile.
+`USER.md` is auto-generated from the profile and should not be edited manually.
 
 ## Session Consolidation (on exit)
 
-Disabled by default for Bun stability. Enable with:
+Disabled by default in `stable` mode for Bun stability. Enable by switching to `full`:
 
 ```bash
-COGITO_ENABLE_CONSOLIDATE=1 bun run src/index.ts
+COGITO_MODE=full bun run src/index.ts
 ```
 
 ## QMD / Realtime Extraction (stability-first)
 
-Controls:
+QMD FTS and realtime extraction are ON in all modes. Embeddings are only enabled in `full`.
 
-- QMD FTS is **ON by default**. Disable with `COGITO_ENABLE_QMD=0`.
-- Realtime extraction is **ON by default**. Disable with `COGITO_ENABLE_REALTIME=0`.
-- Embeddings (vector search) are **OFF by default**. Enable with `COGITO_ENABLE_EMBED=1`.
+## Autonomous Learning (Phase 4)
 
-Example:
+Enable autonomous learning (gap detection → web search → synthesis → save) in `learning` or `full`:
 
 ```bash
-COGITO_ENABLE_EMBED=1 bun run src/index.ts
+COGITO_MODE=learning BRAVE_API_KEY=... bun run src/index.ts
 ```
+
+Generated skills are written by default. To disable writing:
+
+```bash
+COGITO_MODE=learning COGITO_ALLOW_SKILL_WRITE=0 bun run src/index.ts
+```
+
+When a skill is generated, Cogito runs an automatic static review and (if it passes) auto-loads the tool into the agent for the current session. The review blocks filesystem, network, and dynamic code execution.
 
 ## Environment Variables
 
 - `ANTHROPIC_API_KEY` (required)
+- `BRAVE_API_KEY` (required for autonomous learning)
 - `COGITO_MODEL` (e.g. `anthropic/claude-sonnet-4-20250514`)
 - `COGITO_PROMPT_MAX_CHARS`
-- `COGITO_ENABLE_QMD` (`0` to disable)
-- `COGITO_ENABLE_REALTIME` (`0` to disable)
-- `COGITO_ENABLE_EMBED` (`1` to enable)
-- `COGITO_ENABLE_CONSOLIDATE` (`1` to enable)
+- `COGITO_MODE` (`stable` | `learning` | `full`)
+- `COGITO_KNOWLEDGE_GAP_THRESHOLD` (e.g. `0.7`)
+- `COGITO_ALLOW_SKILL_WRITE` (`1` by default; set `0` to disable writes)
+
+Advanced overrides (prefer `COGITO_MODE`):
+
+- `COGITO_ENABLE_QMD`
+- `COGITO_ENABLE_REALTIME`
+- `COGITO_ENABLE_EMBED`
+- `COGITO_ENABLE_CONSOLIDATE`
+- `COGITO_ENABLE_LEARNING`
+- `COGITO_ENABLE_SKILL_GEN`

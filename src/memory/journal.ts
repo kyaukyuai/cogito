@@ -1,10 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { EntityType } from "./types.js";
-
-const KNOWLEDGE_DIR = path.resolve(process.cwd(), "knowledge");
-const DAILY_DIR = path.join(KNOWLEDGE_DIR, "memory");
-const LONG_TERM_PATH = path.join(KNOWLEDGE_DIR, "MEMORY.md");
+import { DAILY_DIR, KNOWLEDGE_DIR, LONG_TERM_PATH } from "./paths.js";
 
 function ensureDir(dir: string): void {
   if (!fs.existsSync(dir)) {

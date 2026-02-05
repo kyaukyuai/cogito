@@ -7,3 +7,4 @@ knowledge/**
 !knowledge/.gitkeep
 !knowledge/README.md
 USER.md
+src/skills/generated/*.ts
