@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { createStore, type Store } from "qmd/src/store";
+import { createStore, type Store, type SearchResult as QmdSearchResult } from "qmd/src/store";
 import type { SearchResult } from "./types.js";
 import { ENABLE_EMBED, ENABLE_QMD } from "../config.js";
 import { KNOWLEDGE_DIR } from "./paths.js";
@@ -79,20 +79,6 @@ function ensureConfigMatchesPath(): void {
   }
 }
 
-function mergeResults<T extends { filepath: string }>(
-  a: T[],
-  b: T[]
-): T[] {
-  const seen = new Set<string>();
-  const merged: T[] = [];
-  for (const item of [...a, ...b]) {
-    if (seen.has(item.filepath)) continue;
-    seen.add(item.filepath);
-    merged.push(item);
-  }
-  return merged;
-}
-
 function extractEntityName(filePath: string): string {
   const parts = filePath.split(path.sep);
   return parts[parts.length - 2] ?? filePath;
@@ -104,7 +90,7 @@ export async function search(query: string, limit = 5): Promise<SearchResult[]> 
   }
   const s = getStore();
 
-  const ftsResults = s.searchFTS(query, limit * 2);
+  const ftsResults = s.searchFTS(query, limit * 2) as QmdSearchResult[];
   if (!ENABLE_EMBED) {
     return ftsResults.slice(0, limit).map((r) => ({
       entity: extractEntityName(r.filepath),
@@ -114,28 +100,19 @@ export async function search(query: string, limit = 5): Promise<SearchResult[]> 
     }));
   }
 
-  const vecResults = await s.searchVec(query, "embeddinggemma", limit * 2);
-  const merged = mergeResults(ftsResults, vecResults);
-
-  if (merged.length === 0) {
-    return [];
-  }
-
-  const reranked = await s.rerank(
-    query,
-    merged.map((r) => ({ file: r.filepath, text: r.snippet }))
-  );
-
-  return reranked.slice(0, limit).map((r) => {
-    const source = r.file;
-    const snippet = merged.find((m) => m.filepath === source)?.snippet ?? "";
-    return {
-      entity: extractEntityName(source),
-      snippet,
+  try {
+    const { searchWithEmbeddings } = await import("../extensions/embeddings.js");
+    return await searchWithEmbeddings(s, query, limit, ftsResults);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Embedding search failed, falling back to FTS: ${message}`);
+    return ftsResults.slice(0, limit).map((r) => ({
+      entity: extractEntityName(r.filepath),
+      snippet: r.snippet,
       score: r.score,
-      source,
-    };
-  });
+      source: r.filepath,
+    }));
+  }
 }
 
 export async function searchFTSOnly(query: string, limit = 5): Promise<SearchResult[]> {
@@ -143,7 +120,7 @@ export async function searchFTSOnly(query: string, limit = 5): Promise<SearchRes
     return [];
   }
   const s = getStore();
-  const ftsResults = s.searchFTS(query, limit);
+  const ftsResults = s.searchFTS(query, limit) as QmdSearchResult[];
   return ftsResults.map((r) => ({
     entity: extractEntityName(r.filepath),
     snippet: r.snippet,
@@ -183,6 +160,7 @@ export async function updateIndex(): Promise<void> {
   closeStore();
 
   if (ENABLE_EMBED && needsEmbedding > 0) {
-    await runQmd(["embed"]);
+    const { runEmbeddingUpdate } = await import("../extensions/embeddings.js");
+    await runEmbeddingUpdate(runQmd, needsEmbedding);
   }
 }

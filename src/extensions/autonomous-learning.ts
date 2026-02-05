@@ -1,7 +1,7 @@
 import { completeSimple, getModel } from "@mariozechner/pi-ai";
-import { addFact, createEntity, entityExists } from "./para.js";
-import { updateIndex } from "./search.js";
-import type { EntityType } from "./types.js";
+import { addFact, createEntity, entityExists } from "../memory/para.js";
+import { updateIndex } from "../memory/search.js";
+import type { EntityType } from "../memory/types.js";
 import { webSearch, type WebSearchResult } from "./web-search.js";
 
 const DEFAULT_MODEL = "anthropic/claude-sonnet-4-20250514";

@@ -4,6 +4,7 @@ import { createAgent, getRequiredApiKey, refreshSystemPrompt } from "./agent.js"
 import { consolidateSession } from "./memory/consolidator.js";
 import { extractFromMessage, getLatestPair, shouldExtract, storeExtractions } from "./memory/realtime-extractor.js";
 import { extractCriteriaFromText, storeCriteria } from "./memory/criteria.js";
+import { parseFeedbackInput, recordFeedback } from "./memory/feedback.js";
 import { extractNameFromText, setUserName } from "./memory/profile.js";
 import { isSkillRequest } from "./skills/skill-generator.js";
 import { bootstrapGeneratedSkills, describeSkillLoadErrors, handleSkillRequest, type SkillRuntime } from "./skills/runtime.js";
@@ -46,6 +47,8 @@ async function main() {
     }
   }
   let assistantActive = false;
+  let pendingFeedback: { userMessage: string; assistantMessage: string } | null = null;
+  let feedbackHintShown = false;
 
   agent.subscribe((event) => {
     if (event.type === "message_start" && event.message.role === "assistant") {
@@ -62,8 +65,16 @@ async function main() {
     if (event.type === "message_end" && event.message.role === "assistant") {
       assistantActive = false;
       output.write("\n");
+      const latestPair = getLatestPair(agent.state.messages);
+      if (latestPair.userMessage || latestPair.assistantMessage) {
+        pendingFeedback = latestPair;
+        if (!feedbackHintShown) {
+          output.write("評価: + / -（任意でメモ）\n");
+          feedbackHintShown = true;
+        }
+      }
       if (ENABLE_REALTIME) {
-        const { userMessage, assistantMessage } = getLatestPair(agent.state.messages);
+        const { userMessage, assistantMessage } = latestPair;
         const criteria = extractCriteriaFromText(userMessage);
         if (criteria.length > 0) {
           queueMicrotask(async () => {
@@ -74,6 +85,7 @@ async function main() {
               console.error(`Criteria Error: ${message}`);
             }
           });
+          output.write(`学習: ${criteria[0]}\n`);
         }
         if (shouldExtract(userMessage, assistantMessage)) {
           queueMicrotask(async () => {
@@ -100,6 +112,27 @@ async function main() {
   await runCli(
     {
       onInput: async (text) => {
+        if (pendingFeedback) {
+          const feedback = parseFeedbackInput(text);
+          if (feedback) {
+            try {
+              recordFeedback({
+                rating: feedback.rating,
+                note: feedback.note,
+                userMessage: pendingFeedback.userMessage,
+                assistantMessage: pendingFeedback.assistantMessage,
+              });
+              output.write("評価を記録しました。\n");
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              output.write(`評価の記録に失敗しました: ${message}\n`);
+            }
+            pendingFeedback = null;
+            return false;
+          }
+          pendingFeedback = null;
+        }
+
         const detectedName = extractNameFromText(text);
         if (detectedName) {
           setUserName(detectedName, "direct");

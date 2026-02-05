@@ -8,7 +8,6 @@ import { addFact, createEntity, entityExists } from "./memory/para.js";
 import { appendDaily, appendLongTerm, classifyMemory } from "./memory/journal.js";
 import { getUserName, setUserName } from "./memory/profile.js";
 import { search, searchFTSOnly, updateIndex } from "./memory/search.js";
-import { learnAutonomously, type LearnedKnowledge } from "./memory/autonomous-learner.js";
 import { generateSkill, isSkillRequest } from "./skills/skill-generator.js";
 import type { EntityType } from "./memory/types.js";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
@@ -99,6 +98,30 @@ function formatRecallResults(results: Array<{ entity: string; snippet: string; s
   ].join("\n");
 }
 
+function extractCriteriaFromResults(results: Array<{ entity: string; snippet: string }>): string[] {
+  const criteria: string[] = [];
+  for (const result of results) {
+    if (!/decision-criteria/i.test(result.entity)) continue;
+    const lines = result.snippet
+      .split("\n")
+      .map((line) => line.replace(/^[-*\\s\\d.]+/, "").trim())
+      .filter(Boolean);
+    for (const line of lines) {
+      if (!criteria.includes(line)) {
+        criteria.push(line);
+      }
+    }
+  }
+  return criteria.slice(0, 3);
+}
+
+type LearnedKnowledge = {
+  topic: string;
+  summary: string;
+  facts: string[];
+  sources: string[];
+};
+
 function formatLearned(learned: LearnedKnowledge): string {
   return [
     `トピック: ${learned.topic}`,
@@ -109,6 +132,13 @@ function formatLearned(learned: LearnedKnowledge): string {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function formatCriteria(criteria: string[]): string {
+  if (criteria.length === 0) {
+    return "";
+  }
+  return ["判断基準:", ...criteria.map((c, i) => `${i + 1}. ${c}`)].join("\n");
 }
 
 function buildSystemPrompt(): string {
@@ -307,11 +337,13 @@ export function createAgent(): Agent {
 
       const topScore = results[0]?.score ?? 0;
       if (results.length > 0 && (!ENABLE_LEARNING || topScore >= KNOWLEDGE_GAP_THRESHOLD)) {
+        const criteria = extractCriteriaFromResults(results);
+        const criteriaBlock = criteria.length > 0 ? `\n\n${formatCriteria(criteria)}` : "";
         return [
           ...messages,
           {
             role: "user",
-            content: [{ type: "text", text: `【記憶】\n${formatRecallResults(results)}` }],
+            content: [{ type: "text", text: `【記憶】\n${formatRecallResults(results)}${criteriaBlock}` }],
             timestamp: Date.now(),
           },
         ];
@@ -322,6 +354,7 @@ export function createAgent(): Agent {
       }
 
       try {
+        const { learnAutonomously } = await import("./extensions/autonomous-learning.js");
         const learned = await learnAutonomously(query);
         return [
           ...messages,
@@ -337,7 +370,16 @@ export function createAgent(): Agent {
               ...messages,
               {
                 role: "user",
-                content: [{ type: "text", text: `【記憶】\n${formatRecallResults(results)}` }],
+                content: [
+                  {
+                    type: "text",
+                    text: (() => {
+                      const criteria = extractCriteriaFromResults(results);
+                      const criteriaBlock = criteria.length > 0 ? `\n\n${formatCriteria(criteria)}` : "";
+                      return `【記憶】\n${formatRecallResults(results)}${criteriaBlock}`;
+                    })(),
+                  },
+                ],
                 timestamp: Date.now(),
               },
             ]

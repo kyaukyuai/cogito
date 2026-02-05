@@ -59,6 +59,23 @@ User -> CLI -> Pi Agent -> LLM
              |-> skills   -> generate / review / auto-load
 ```
 
+## Core vs Extensions
+
+**Core (design proof + agent essentials)**:
+
+- Thinking-pattern learning (decision criteria accumulation)
+- Structured memory (PARA + QMD FTS)
+- Self-extension (skill generation + review + auto-load)
+- Minimal runtime loop (CLI + daemon/scheduler)
+
+**Extensions (optional power-ups)**:
+
+- Autonomous learning execution (web search + synthesis + save)
+- Embeddings / rerank
+- Advanced channels and ops
+
+**Hybrid rule**: the *ability to learn* lives in Core; the *execution of learning* lives in Extensions.
+
 PARA layout:
 
 ```
@@ -81,6 +98,16 @@ Store daily conversation logs and short-lived events.
 
 Routing rule:  
 `person` / `project` / `decision` go to long-term memory. Everything else goes to daily memory.
+
+## Feedback Loop
+
+After each assistant response, you can record quick feedback:
+
+- `+` or `good` for a good answer
+- `-` or `bad` for a bad answer
+- Optional notes: `+: too verbose`, `bad: missed context`
+
+Feedback is stored in `knowledge/feedback/YYYY-MM-DD.md`.
 
 ## Modes
 
@@ -155,6 +182,7 @@ bun run src/index.ts
 │   ├── index.ts          # CLI entry
 │   ├── cli/              # CLI loop + input buffering
 │   ├── memory/           # PARA, search, profile, journal, criteria
+│   ├── extensions/       # Optional: autonomous learning, embeddings, web search
 │   └── skills/           # generator, review, loader, runtime
 ├── prompts/              # system prompt
 ├── knowledge/            # PARA memory store

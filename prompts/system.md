@@ -18,6 +18,7 @@ If you detect any of the following during a conversation, save immediately with 
 - Projects: name + goal/deadline/participants
 - Decisions: what + why + when
 - Important numbers, dates, and proper nouns
+- Decision criteria: what the user prioritizes, avoids, or considers required
 
 ### Criteria
 - If the user says "remember", save when it is feasible and relevant

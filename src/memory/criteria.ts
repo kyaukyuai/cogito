@@ -1,9 +1,12 @@
+import fs from "node:fs";
 import { addFact, createEntity, entityExists } from "./para.js";
 import { appendLongTerm } from "./journal.js";
 import { updateIndex } from "./search.js";
+import { LONG_TERM_PATH } from "./paths.js";
 
 const CRITERIA_ENTITY = "decision-criteria";
 const CRITERIA_SUMMARY = "User decision criteria and evaluation preferences.";
+const GROWTH_HEADER = "## Growth";
 
 const CRITERIA_PATTERNS: RegExp[] = [
   /重視する|大事にする|重要視する|最優先|優先する/u,
@@ -38,7 +41,25 @@ export async function storeCriteria(criteria: string[], source: string): Promise
     const line = item.startsWith("判断基準") ? item : `判断基準: ${item}`;
     addFact("resource", CRITERIA_ENTITY, line, source);
     appendLongTerm(line, source);
+    appendGrowthEntry(line, source);
   }
   await updateIndex();
   return true;
+}
+
+function ensureGrowthSection(): void {
+  if (!fs.existsSync(LONG_TERM_PATH)) {
+    return;
+  }
+  const content = fs.readFileSync(LONG_TERM_PATH, "utf8");
+  if (content.includes(GROWTH_HEADER)) {
+    return;
+  }
+  fs.appendFileSync(LONG_TERM_PATH, `\n${GROWTH_HEADER}\n`, "utf8");
+}
+
+function appendGrowthEntry(entry: string, source: string): void {
+  ensureGrowthSection();
+  const ts = new Date().toISOString();
+  fs.appendFileSync(LONG_TERM_PATH, `- ${ts} [${source}] ${entry}\n`, "utf8");
 }
