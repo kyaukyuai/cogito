@@ -1,0 +1,20 @@
+services:
+  cogito:
+    build: .
+    command: ["bun", "run", "src/daemon.ts"]
+    env_file:
+      - .env
+    volumes:
+      - ./knowledge:/app/knowledge
+      - ./.qmd:/app/.qmd
+    restart: unless-stopped
+  cogito-cli:
+    build: .
+    command: ["bun", "run", "src/index.ts"]
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./knowledge:/app/knowledge
+      - ./.qmd:/app/.qmd

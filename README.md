@@ -1,35 +1,30 @@
 # Cogito
 
-An AI agent (MVP) designed to learn and approximate the user's thinking process.
+Cogito is a malleable personal agent with a tiny core (~2.1k LOC) and self-extending tools.
 
-## Design Philosophy: Malleable Agent
+## Key Features
 
-“Pi is the most interesting agent harness. Tiny core, able to write plugins for itself as you use it. It RLs itself into the agent you want.” “Dawn of the age of malleable software.” — Shopify CEO Tobi Lütke (2026-02-03)
+- Tiny core with self-extending tools (skill generation + review + auto-load)
+- Structured memory with PARA + QMD search (FTS by default, embeddings optional)
+- Memory-aware responses (`remember` / `recall`)
+- Optional autonomous learning (Brave Search integration)
+- User profile memory (`knowledge/profile.json`)
 
-Four design principles:
+## Architecture
 
-1. Self-extension over fixed features.
-2. “I want this feature” → the agent can propose or implement it.
-3. RL-like evolution with use (aspirational).
-4. Tiny core + self-extending system (where safe).
-
-Autonomous learning loop:
-
-1. Unknown → investigate.
-2. Learn and store (when enabled).
-3. Answer better next time (best effort).
-
-Trajectory:
-
-1. Day 1: general assistant.
-2. Day 100: closer approximation of the target decision-maker.
+```
+User -> CLI -> Pi Agent -> LLM
+             |-> remember -> knowledge/ (PARA) -> QMD index
+             |-> recall   -> QMD search -> context injection
+             |-> skills   -> generate / review / auto-load
+```
 
 ## Requirements
 
-- Bun 1.x (QMD relies on `bun:sqlite`)
+- Bun 1.x (QMD uses `bun:sqlite`)
 - Node.js 20+ (tooling)
 
-## Setup
+## Install
 
 ```bash
 bun install
@@ -37,15 +32,39 @@ cp .env.example .env
 # set ANTHROPIC_API_KEY in .env
 ```
 
-## Run
+## Docker (Recommended)
+
+Run as a background service:
+
+```bash
+docker compose up -d --build
+```
+
+Data persistence:
+
+- `knowledge/` is persisted as a volume
+- `.qmd/` is persisted as a volume
+
+Start an interactive CLI inside the container:
+
+```bash
+docker compose run --rm cogito-cli
+```
+
+Optional scheduler tuning:
+
+- `COGITO_INDEX_REFRESH_MS` (default `900000` = 15 min)
+- `COGITO_HEARTBEAT_MS` (default `0`, set to enable heartbeat logs)
+
+## Local CLI (Development)
 
 ```bash
 bun run src/index.ts
 ```
 
-## Modes (Simplified)
+## Modes
 
-Set `COGITO_MODE` to control features as a single switch. Default is `full`:
+`COGITO_MODE` is the main switch (default: `full`).
 
 - `stable`: QMD FTS + realtime extraction, no embeddings, no consolidation, no autonomous learning
 - `learning`: `stable` + autonomous learning + skill proposals
@@ -58,63 +77,23 @@ COGITO_MODE=learning BRAVE_API_KEY=... bun run src/index.ts
 COGITO_MODE=full BRAVE_API_KEY=... bun run src/index.ts
 ```
 
-## Features
+## Memory Model
 
-- CLI chat loop
-- Structured memory via `remember`
-- Memory-aware responses
-- User profile (`knowledge/profile.json`) for more stable name recall
-- `USER.md` auto-synced from profile (generated file)
-
-## OpenClaw-Style Prompt Composition
-
-The system prompt is built dynamically from these files:
-
-- `AGENTS.md`
-- `SOUL.md`
-- `IDENTITY.md`
-- `TOOLS.md`
-- `USER.md`
-- `knowledge/MEMORY.md`
-- `knowledge/memory/YYYY-MM-DD.md` (today and yesterday)
-
-You can limit injected size with `COGITO_PROMPT_MAX_CHARS`.
-
-## Memory Storage Rules (OpenClaw-style)
-
-Long-term memory file: `knowledge/MEMORY.md`.
+**Long-term memory**: `knowledge/MEMORY.md`  
 Store names, roles, decision criteria, and persistent facts.
 
-Daily memory file: `knowledge/memory/YYYY-MM-DD.md`.
+**Daily memory**: `knowledge/memory/YYYY-MM-DD.md`  
 Store daily conversation logs and short-lived events.
 
-Routing rule:
+**Routing rule**:  
 `person` / `project` / `decision` go to long-term memory. Everything else goes to daily memory.
 
 ## Profile and USER.md
 
-`knowledge/profile.json` is the source of truth.
+`knowledge/profile.json` is the source of truth.  
 `USER.md` is auto-generated from the profile and should not be edited manually.
 
-## Session Consolidation (on exit)
-
-Disabled by default in `stable` mode for Bun stability. Enable by switching to `full`:
-
-```bash
-COGITO_MODE=full bun run src/index.ts
-```
-
-## QMD / Realtime Extraction (stability-first)
-
-QMD FTS and realtime extraction are ON in all modes. Embeddings are only enabled in `full`.
-
-## Autonomous Learning (Phase 4)
-
-Enable autonomous learning (gap detection → web search → synthesis → save) in `learning` or `full`:
-
-```bash
-COGITO_MODE=learning BRAVE_API_KEY=... bun run src/index.ts
-```
+## Skill Generation
 
 Generated skills are written by default. To disable writing:
 
@@ -124,15 +103,28 @@ COGITO_MODE=learning COGITO_ALLOW_SKILL_WRITE=0 bun run src/index.ts
 
 When a skill is generated, Cogito runs an automatic static review and (if it passes) auto-loads the tool into the agent for the current session. The review blocks filesystem, network, and dynamic code execution.
 
-## Environment Variables
+## Autonomous Learning
+
+Enable autonomous learning (gap detection → web search → synthesis → save):
+
+```bash
+COGITO_MODE=learning BRAVE_API_KEY=... bun run src/index.ts
+```
+
+## Configuration
+
+Main variables:
 
 - `ANTHROPIC_API_KEY` (required)
 - `BRAVE_API_KEY` (required for autonomous learning)
+- `COGITO_MODE` (`stable` | `learning` | `full`)
 - `COGITO_MODEL` (e.g. `anthropic/claude-sonnet-4-20250514`)
 - `COGITO_PROMPT_MAX_CHARS`
-- `COGITO_MODE` (`stable` | `learning` | `full`)
-- `COGITO_KNOWLEDGE_GAP_THRESHOLD` (e.g. `0.7`)
+- `COGITO_KNOWLEDGE_GAP_THRESHOLD`
 - `COGITO_ALLOW_SKILL_WRITE` (`1` by default; set `0` to disable writes)
+- `COGITO_PASTE_DEBOUNCE_MS` (default `60`)
+- `COGITO_INDEX_REFRESH_MS` (default `900000`)
+- `COGITO_HEARTBEAT_MS` (default `0`)
 
 Advanced overrides (prefer `COGITO_MODE`):
 
@@ -142,3 +134,26 @@ Advanced overrides (prefer `COGITO_MODE`):
 - `COGITO_ENABLE_CONSOLIDATE`
 - `COGITO_ENABLE_LEARNING`
 - `COGITO_ENABLE_SKILL_GEN`
+
+## Project Structure
+
+```
+.
+├── src/
+│   ├── agent.ts          # Agent configuration
+│   ├── index.ts          # CLI entry
+│   ├── cli/              # CLI loop + input buffering
+│   ├── memory/           # PARA, search, profile, journal, criteria
+│   └── skills/           # generator, review, loader, runtime
+├── prompts/              # system prompt
+├── knowledge/            # PARA memory store
+├── qmd.yaml              # QMD config
+└── .env.example
+```
+
+## Design Philosophy (Malleable Agent)
+
+1. Self-extension over fixed features  
+2. Use-based evolution is an aspiration  
+3. Tiny core + safe, optional extensions  
+4. Autonomous learning when enabled

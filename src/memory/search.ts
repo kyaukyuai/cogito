@@ -22,6 +22,7 @@ function getStore(): Store {
     if (!fs.existsSync(QMD_DIR)) {
       fs.mkdirSync(QMD_DIR, { recursive: true });
     }
+    ensureConfigMatchesPath();
     store = createStore(DB_PATH);
   }
   return store;
@@ -59,6 +60,23 @@ function runQmd(args: string[]): Promise<void> {
       reject(new Error(stderr.trim() || `qmd exited with code ${code}`));
     });
   });
+}
+
+function ensureConfigMatchesPath(): void {
+  if (!fs.existsSync(QMD_CONFIG)) {
+    return;
+  }
+  try {
+    const raw = fs.readFileSync(QMD_CONFIG, "utf8");
+    if (raw.includes(KNOWLEDGE_DIR)) {
+      return;
+    }
+    // Config points to a different path (e.g., host path). Reset index in this environment.
+    fs.rmSync(QMD_DIR, { recursive: true, force: true });
+    fs.mkdirSync(QMD_DIR, { recursive: true });
+  } catch {
+    // Best-effort; if reset fails, proceed and let qmd error surface.
+  }
 }
 
 function mergeResults<T extends { filepath: string }>(
@@ -141,6 +159,7 @@ export async function updateIndex(): Promise<void> {
   if (!fs.existsSync(QMD_DIR)) {
     fs.mkdirSync(QMD_DIR, { recursive: true });
   }
+  ensureConfigMatchesPath();
 
   const configExists = fs.existsSync(QMD_CONFIG);
   if (!configExists) {

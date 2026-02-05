@@ -3,6 +3,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { createAgent, getRequiredApiKey, refreshSystemPrompt } from "./agent.js";
 import { consolidateSession } from "./memory/consolidator.js";
 import { extractFromMessage, getLatestPair, shouldExtract, storeExtractions } from "./memory/realtime-extractor.js";
+import { extractCriteriaFromText, storeCriteria } from "./memory/criteria.js";
 import { extractNameFromText, setUserName } from "./memory/profile.js";
 import { isSkillRequest } from "./skills/skill-generator.js";
 import { bootstrapGeneratedSkills, describeSkillLoadErrors, handleSkillRequest, type SkillRuntime } from "./skills/runtime.js";
@@ -63,6 +64,17 @@ async function main() {
       output.write("\n");
       if (ENABLE_REALTIME) {
         const { userMessage, assistantMessage } = getLatestPair(agent.state.messages);
+        const criteria = extractCriteriaFromText(userMessage);
+        if (criteria.length > 0) {
+          queueMicrotask(async () => {
+            try {
+              await storeCriteria(criteria, "realtime");
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              console.error(`Criteria Error: ${message}`);
+            }
+          });
+        }
         if (shouldExtract(userMessage, assistantMessage)) {
           queueMicrotask(async () => {
             try {

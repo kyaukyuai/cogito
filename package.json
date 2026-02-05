@@ -5,7 +5,8 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "build": "tsc",
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "daemon": "bun run src/daemon.ts"
   },
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.51.1",
