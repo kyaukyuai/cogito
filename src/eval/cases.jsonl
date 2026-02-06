@@ -1,0 +1,3 @@
+{"id":"recall.user_name","kind":"recall","queries":["who am i?","who am i ?","私は誰？","私の名前覚えてる？"],"requiredAny":["alex","あなたの名前は","you are"],"forbiddenAny":["unknown","わかりません","記憶がありません"]}
+{"id":"criteria.response_style","kind":"criteria","queries":["短く答えて","簡潔に答えて","be concise"],"requiredAny":["簡潔","短く","brief","concise"],"forbiddenAny":["長文","very long"]}
+{"id":"skill.meeting_minutes","kind":"skill","queries":["議事録を要約する機能が欲しい。ツールを作成して。","I want a meeting minutes summary tool. Build it."],"requiredAny":["スキル案","skill","meeting"],"forbiddenAny":["レビュー: ng","ロード: 失敗"]}

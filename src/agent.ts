@@ -12,6 +12,7 @@ import { generateSkill, isSkillRequest } from "./skills/skill-generator.js";
 import type { EntityType } from "./memory/types.js";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { ENABLE_LEARNING, ENABLE_QMD, KNOWLEDGE_GAP_THRESHOLD } from "./config.js";
+import { DAILY_DIR, LONG_TERM_PATH } from "./memory/paths.js";
 
 const DEFAULT_MODEL = "anthropic/claude-sonnet-4-20250514";
 const SYSTEM_PROMPT_PATH = path.resolve(process.cwd(), "prompts", "system.md");
@@ -22,8 +23,7 @@ const USER_PATH = path.resolve(process.cwd(), "USER.md");
 const SOUL_PATH = path.resolve(process.cwd(), "SOUL.md");
 const IDENTITY_PATH = path.resolve(process.cwd(), "IDENTITY.md");
 const TOOLS_PATH = path.resolve(process.cwd(), "TOOLS.md");
-const MEMORY_PATH = path.resolve(process.cwd(), "knowledge", "MEMORY.md");
-const DAILY_DIR = path.resolve(process.cwd(), "knowledge", "memory");
+const MEMORY_PATH = LONG_TERM_PATH;
 
 function parseModelSpec(spec: string): { provider: string; model: string } {
   if (spec.includes("/")) {

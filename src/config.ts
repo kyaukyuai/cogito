@@ -1,6 +1,6 @@
 export type CogitoMode = "stable" | "learning" | "full";
 
-const rawMode = (process.env.COGITO_MODE ?? "full").toLowerCase();
+const rawMode = (process.env.COGITO_PROFILE ?? process.env.COGITO_MODE ?? "full").toLowerCase();
 const mode: CogitoMode = rawMode === "learning" || rawMode === "stable" ? rawMode : "full";
 
 const base = {
@@ -47,6 +47,7 @@ const enableSkillGen =
     : base.skillGen;
 
 export const COGITO_MODE = mode;
+export const COGITO_PROFILE = mode;
 export const ENABLE_QMD = enableQmd;
 export const ENABLE_REALTIME = enableRealtime;
 export const ENABLE_EMBED = enableEmbed;

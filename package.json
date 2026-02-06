@@ -6,7 +6,10 @@
     "start": "tsx src/index.ts",
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
-    "daemon": "bun run src/daemon.ts"
+    "daemon": "bun run src/daemon.ts",
+    "metrics:weekly": "bun run src/metrics/report.ts",
+    "eval:run": "bun run src/eval/run.ts",
+    "eval:baseline": "bun run src/eval/run.ts --set-baseline"
   },
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.51.1",

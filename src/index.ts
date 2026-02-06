@@ -5,10 +5,11 @@ import { consolidateSession } from "./memory/consolidator.js";
 import { extractFromMessage, getLatestPair, shouldExtract, storeExtractions } from "./memory/realtime-extractor.js";
 import { extractCriteriaFromText, storeCriteria } from "./memory/criteria.js";
 import { parseFeedbackInput, recordFeedback } from "./memory/feedback.js";
+import { detectContextSignals, detectSkillProposal, recordTurnMetrics } from "./metrics/events.js";
 import { extractNameFromText, setUserName } from "./memory/profile.js";
 import { isSkillRequest } from "./skills/skill-generator.js";
 import { bootstrapGeneratedSkills, describeSkillLoadErrors, handleSkillRequest, type SkillRuntime } from "./skills/runtime.js";
-import { ENABLE_CONSOLIDATE, ENABLE_REALTIME, ENABLE_SKILL_GEN } from "./config.js";
+import { COGITO_PROFILE, ENABLE_CONSOLIDATE, ENABLE_REALTIME, ENABLE_SKILL_GEN } from "./config.js";
 import { runCli } from "./cli/loop.js";
 
 const DEFAULT_MODEL = "anthropic/claude-sonnet-4-20250514";
@@ -49,6 +50,7 @@ async function main() {
   let assistantActive = false;
   let pendingFeedback: { userMessage: string; assistantMessage: string } | null = null;
   let feedbackHintShown = false;
+  let pendingTurn: { userText: string; startedAt: number } | null = null;
 
   agent.subscribe((event) => {
     if (event.type === "message_start" && event.message.role === "assistant") {
@@ -66,6 +68,26 @@ async function main() {
       assistantActive = false;
       output.write("\n");
       const latestPair = getLatestPair(agent.state.messages);
+      if (pendingTurn) {
+        const signals = detectContextSignals(agent.state.messages);
+        try {
+          recordTurnMetrics({
+            timestamp: new Date().toISOString(),
+            mode: COGITO_PROFILE,
+            userText: pendingTurn.userText,
+            assistantText: latestPair.assistantMessage,
+            latencyMs: Date.now() - pendingTurn.startedAt,
+            usedMemory: signals.usedMemory,
+            usedLearning: signals.usedLearning,
+            usedCriteria: signals.usedCriteria,
+            usedSkillProposal: detectSkillProposal(latestPair.assistantMessage),
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(`Metrics Error: ${message}`);
+        }
+        pendingTurn = null;
+      }
       if (latestPair.userMessage || latestPair.assistantMessage) {
         pendingFeedback = latestPair;
         if (!feedbackHintShown) {
@@ -169,6 +191,7 @@ async function main() {
         }
 
         try {
+          pendingTurn = { userText: text, startedAt: Date.now() };
           await agent.prompt(text);
           if (assistantActive) {
             output.write("\n");

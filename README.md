@@ -109,9 +109,24 @@ After each assistant response, you can record quick feedback:
 
 Feedback is stored in `knowledge/feedback/YYYY-MM-DD.md`.
 
+## Eval Loop
+
+Use fixed cases + baseline to measure "getting better with use".
+
+```bash
+bun run eval:baseline   # run once to set baseline
+bun run eval:run        # compare current results vs baseline
+```
+
+Outputs:
+
+- `knowledge/metrics/eval-latest.md`
+- `knowledge/metrics/eval-YYYY-WW.md`
+
 ## Modes
 
-`COGITO_MODE` is the main switch (default: `full`).
+`COGITO_PROFILE` is the main switch (default: `full`).
+`COGITO_MODE` is still supported as a backward-compatible alias.
 
 - `stable`: QMD FTS + realtime extraction, no embeddings, no consolidation, no autonomous learning
 - `learning`: `stable` + autonomous learning + skill proposals
@@ -120,8 +135,8 @@ Feedback is stored in `knowledge/feedback/YYYY-MM-DD.md`.
 Examples:
 
 ```bash
-COGITO_MODE=learning BRAVE_API_KEY=... bun run src/index.ts
-COGITO_MODE=full BRAVE_API_KEY=... bun run src/index.ts
+COGITO_PROFILE=learning BRAVE_API_KEY=... bun run src/index.ts
+COGITO_PROFILE=full BRAVE_API_KEY=... bun run src/index.ts
 ```
 
 ## Configuration
@@ -130,7 +145,9 @@ Main variables:
 
 - `ANTHROPIC_API_KEY` (required)
 - `BRAVE_API_KEY` (required for autonomous learning)
-- `COGITO_MODE` (`stable` | `learning` | `full`)
+- `COGITO_PROFILE` (`stable` | `learning` | `full`)
+- `COGITO_MODE` (deprecated alias)
+- `COGITO_HOME` (optional data root, default: current working directory)
 - `COGITO_MODEL` (e.g. `anthropic/claude-sonnet-4-20250514`)
 - `COGITO_PROMPT_MAX_CHARS`
 - `COGITO_KNOWLEDGE_GAP_THRESHOLD`
@@ -139,7 +156,7 @@ Main variables:
 - `COGITO_INDEX_REFRESH_MS` (default `900000`)
 - `COGITO_HEARTBEAT_MS` (default `0`)
 
-Advanced overrides (prefer `COGITO_MODE`):
+Advanced overrides (prefer `COGITO_PROFILE`):
 
 - `COGITO_ENABLE_QMD`
 - `COGITO_ENABLE_REALTIME`

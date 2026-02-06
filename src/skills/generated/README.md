@@ -2,7 +2,7 @@
 
 This directory stores auto-generated tools. Files are written by default when:
 
-- COGITO_MODE=learning or COGITO_MODE=full (or COGITO_ENABLE_SKILL_GEN=1)
+- COGITO_PROFILE=learning or COGITO_PROFILE=full (COGITO_MODE also works as an alias)
 - COGITO_ALLOW_SKILL_WRITE is not set to 0
 
 If writes are disabled, the system only returns a proposal.
